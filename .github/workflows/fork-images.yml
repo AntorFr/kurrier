@@ -1,0 +1,62 @@
+name: fork-images
+
+# Fork-only workflow (AntorFr/kurrier): builds the patched kurrier images
+# for the homelab as ghcr.io/antorfr/kurrier-{web,worker}. Triggered by
+# pre-release tags like v3.2.1-antor.1; amd64 only (test images).
+# This file lives on the antor/integration branch and never goes upstream.
+
+on:
+  push:
+    tags: ['v*-antor*']
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [web, worker]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/antorfr/kurrier-${{ matrix.service }}
+          tags: |
+            type=ref,event=tag
+
+      - name: Build & push ${{ matrix.service }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/${{ matrix.service }}/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NODE_ENV=production
+            JWT_SECRET=build_dummy_jwt_secret
+            APP_SECRET_ENCRYPTION_KEY=build_dummy_app_secret_encryption_key
+            S3_REGION=garage
+            S3_BUCKET=build-bucket
+            S3_ENDPOINT=http://localhost:3900
+            S3_ACCESS_KEY=build_access_key
+            S3_SECRET_KEY=build_secret_key
+            S3_FORCE_PATH_STYLE=true
