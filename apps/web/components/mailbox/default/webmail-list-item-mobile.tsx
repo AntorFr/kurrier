@@ -1,12 +1,13 @@
 "use client";
 import React from "react";
-import { Mail, MailOpen, Paperclip, Trash2 } from "lucide-react";
+import { Archive, Mail, MailOpen, Paperclip, Trash2 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import type { MailboxEntity, MailboxSyncEntity } from "@db";
 import {
 	FetchMailboxThreadsResult,
 	markAsRead,
 	markAsUnread,
+	moveToArchive,
 	moveToTrash,
 	toggleStar,
 } from "@/lib/actions/mailbox";
@@ -23,6 +24,7 @@ type Props = {
 	identityPublicId: string;
 	mailboxSync: MailboxSyncEntity | undefined;
 	labelsByThreadId: FetchMailboxThreadLabelsResult;
+	hasArchive?: boolean;
 };
 
 export default function WebmailListItemMobile({
@@ -31,6 +33,7 @@ export default function WebmailListItemMobile({
 	identityPublicId,
 	mailboxSync,
 	labelsByThreadId,
+	hasArchive,
 }: Props) {
 	const router = useRouter();
 
@@ -227,6 +230,27 @@ export default function WebmailListItemMobile({
 						<MailOpen className="h-4 w-4" />
 					</button>
 				)}
+				{hasArchive &&
+					activeMailbox.kind !== "archive" &&
+					activeMailbox.kind !== "trash" && (
+						<button
+							onClick={async () => {
+								await moveToArchive(
+									mailboxThreadItem.threadId,
+									activeMailbox.id,
+									!!mailboxSync,
+									true,
+								);
+								toast.success("Messages moved to Archive", {
+									position: "bottom-left",
+								});
+							}}
+							className="rounded p-1 hover:bg-muted"
+							title="Archive"
+						>
+							<Archive className="h-4 w-4" />
+						</button>
+					)}
 				<button
 					onClick={async () => {
 						await moveToTrash(
