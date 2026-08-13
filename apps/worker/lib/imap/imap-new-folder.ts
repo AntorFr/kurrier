@@ -1,5 +1,5 @@
 import { ImapFlow } from "imapflow";
-import { db, mailboxes, mailboxSync } from "@db";
+import { db, identities, mailboxes, mailboxSync } from "@db";
 import { eq } from "drizzle-orm";
 import slugify from "@sindresorhus/slugify";
 
@@ -25,6 +25,16 @@ export async function addNewFolder(
 	client: ImapFlow,
 ) {
 	if (!data?.name?.trim()) throw new Error("Folder name is required");
+
+	// The insert runs on the worker's admin connection, where the RLS-session
+	// default for workspace_id does not evaluate — resolve it explicitly.
+	const [identity] = await db
+		.select()
+		.from(identities)
+		.where(eq(identities.id, data.identityId))
+		.limit(1);
+
+	if (!identity) throw new Error("Identity not found");
 
 	let parentPath = "";
 	let delimiter = "/";
@@ -69,6 +79,7 @@ export async function addNewFolder(
 		.insert(mailboxes)
 		.values({
 			ownerId: data.ownerId,
+			workspaceId: identity.workspaceId,
 			identityId: data.identityId,
 			parentId:
 				String(data.parentId)?.trim().length > 0 ? String(data.parentId) : null,
