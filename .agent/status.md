@@ -1,32 +1,42 @@
 # Status — kurrier (fork local)
 
-> MàJ : 2026-08-13
+> MàJ : 2026-08-13 (soir)
 
-**État :** Features Authelia + provisioning **déployées en prod** (mail.berard.me,
-tantive) via l'image du fork `ghcr.io/antorfr/kurrier-{web,worker}:v3.2.1-antor.2`.
-Chaîne OIDC vérifiée par curl de bout en bout (start → Authelia → token
-`client_secret_basic` → callback), API worker en place (401 sans clé). Reste le
-login navigateur (utilisateur) et un provisioning Zimbra réel.
+**État :** **Tout est en prod et validé en réel** (mail.berard.me, tantive, image
+`ghcr.io/antorfr/kurrier-{web,worker}:v3.2.1-antor.3`). Login SSO Authelia confirmé
+par l'utilisateur dans le navigateur. Onboarding complet testé sur Émilie : user
+pré-provisionné AVANT son 1er login (`POST /users` created:true), boîte OVH Zimbra
+câblée (`backfill: completed`, boucle IDLE active). creds-sync a désormais Kurrier
+en 4ᵉ cible (provisioning + rotation, testée : « Kurrier mdp tourné »).
 
 **Branches (poussées sur AntorFr/kurrier) :**
-- `feat/generic-oidc-login` (8b7314f + fix fbae59d) — OIDC générique via env.
-  Le fix fbae59d est CRITIQUE : Next standalone réécrit `request.url` (host = pod)
-  et openid-client v6 en dérive le redirect_uri ⇒ ancré sur `WEB_URL`.
-  Le flow Google upstream a le même bug (matière à issue/PR séparée).
+- `feat/generic-oidc-login` (8b7314f + fbae59d) — OIDC générique via env.
+  fbae59d est CRITIQUE : Next standalone réécrit `request.url` (host = pod) et
+  openid-client v6 en dérive le redirect_uri ⇒ tout ancré sur `WEB_URL`.
+  Le flow Google upstream a le même bug (à signaler).
 - `feat/provisioning-api` (9e63d19) — CRUD `/api/kurrier/smtp-accounts`
   + `POST /api/kurrier/identities` (backfill IMAP, statut renvoyé).
-- `antor/integration` — merge des deux + workflow `fork-images.yml` (tags
-  `v*-antor*` → images GHCR, amd64) + ce fichier. Ne JAMAIS pousser upstream.
+- `feat/admin-api-key` (4260da4, basée sur provisioning-api) — clé admin
+  d'instance `API_ADMIN_KEY` (env worker, opt-in, 32+ chars) : `POST /users`
+  (pré-provision avant 1er login, idempotent) + `userEmail` on-behalf sur
+  smtp-accounts/identities. Décision : pas de clé par utilisateur (les enfants
+  ne créent pas de clé API).
+- `antor/integration` — merge des trois + workflow `fork-images.yml` + ce fichier.
+  Ne JAMAIS pousser upstream.
 
-**Déploiement (k8s-home-lab) :**
-- `clusters/tantive/tools/mail/kurrier-helm-config.yml` : images fork,
-  `dbInit.sourceRepo` → fork (le tag -antor.N n'existe que là), env `OIDC_*`.
-- `clusters/homenode/infra/authelia-helm-config.yml` : client `kurrier`.
+**Déploiement (k8s-home-lab + creds-sync) :**
+- `clusters/tantive/tools/mail/kurrier-helm-config.yml` : images fork antor.3,
+  `dbInit.sourceRepo` → fork, env `OIDC_*` + `API_ADMIN_KEY` (envFile).
+- `clusters/homenode/infra/authelia-helm-config.yml` : client `kurrier`
+  (secret clair aussi dans `secret/oidc/kurrier` au coffre).
+- creds-sync : cible Kurrier (lit API_ADMIN_KEY du Secret `kurrier-env`,
+  port-forward éphémère). Onboarder Laurine/Timothée = `creds-sync.py --only <user>`.
 - Nouvelle version : tag `v3.2.1-antor.N+1` sur antor/integration → CI fork
   → bump `image.tag` du manifeste (Renovate ne suit pas ce pattern -antor).
 
 **Prochaines étapes :**
-- [ ] Test login navigateur via « SSO berard.me » (utilisateur)
-- [ ] Provisioning réel d'un compte OVH Zimbra via l'API (besoin : API key du dashboard + creds Zimbra)
-- [ ] Upstream : issue + 2 PR depuis les branches feature (aucune issue OIDC/SSO existante) ; signaler aussi le bug request.url du flow Google et le bug `upsertSMTPAccount` (dashboard.ts ~l.154 : `tx.insert(accountSecret)` au lieu de la table, champ `providerId` au lieu d'`accountId`)
-- [ ] Après merge upstream : revenir sur les images kurrier-org/* et retirer le client/env spécifiques si obsolètes
+- [ ] Feature 4 demandée : bouton **Archiver** dans le webmail (OVH le supporte) — à investiguer/coder
+- [ ] Onboarder Laurine + Timothée (`creds-sync.py --only laurine --only timothee`) quand tu veux
+- [ ] Optionnel (geste admin coffre) : ajouter `api_admin_key` à `secret/apps/kurrier` (existe déjà, create-only refuse l'update)
+- [ ] Upstream : issue + 3 PR depuis les branches feature ; signaler aussi le bug request.url du flow Google et le bug `upsertSMTPAccount` (dashboard.ts ~l.154)
+- [ ] Après merge upstream : revenir sur les images kurrier-org/*
