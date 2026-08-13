@@ -9,6 +9,7 @@ import {
 	FetchLabelsResult,
 	FetchMailboxThreadLabelsResult,
 } from "@/lib/actions/labels";
+import type { MailboxEntity } from "@db";
 import MailListHeader from "@/components/mailbox/default/mail-list-header";
 import WebmailListItem from "@/components/mailbox/default/webmail-list-item";
 import { DynamicContextProvider } from "@/hooks/use-dynamic-context";
@@ -38,10 +39,19 @@ export default function WebmailList({
 }: WebListProps) {
 	const {labelsByThreadId, mailboxThreads} = use(mailboxThreadPromise)
 	const globalLabels = use(globalLabelsPromise)
-	const {mailboxSync, activeMailbox} = use(fetchMailboxPromise)
+	const fetchedMailbox = use(fetchMailboxPromise)
+	const mailboxSync = fetchedMailbox.mailboxSync
+	const activeMailbox = fetchedMailbox.activeMailbox as MailboxEntity
 	const identityMailboxes = use(identityMailboxesPromise)
 	const isMobile = useMediaQuery("(max-width: 768px)");
 	const params = useParams();
+
+	// Archive action only makes sense when the identity has an archive folder
+	const hasArchive = identityMailboxes.some(
+		(row) =>
+			row.identity?.id === activeMailbox?.identityId &&
+			row.mailboxes?.some((m: MailboxEntity) => m.kind === "archive"),
+	);
 
 	return (
 		<div className={params?.threadId ? "hidden" : ""}>
@@ -79,6 +89,7 @@ export default function WebmailList({
 										identityPublicId={identityPublicId}
 										mailboxSync={mailboxSync ?? undefined}
 										labelsByThreadId={labelsByThreadId}
+										hasArchive={hasArchive}
 									/>
 								) : (
 									<WebmailListItem
@@ -92,6 +103,7 @@ export default function WebmailList({
 										mailboxSync={mailboxSync ?? undefined}
 										globalLabels={globalLabels}
 										labelsByThreadId={labelsByThreadId}
+										hasArchive={hasArchive}
 									/>
 								),
 							)}
