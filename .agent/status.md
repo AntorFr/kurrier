@@ -37,6 +37,6 @@ en 4ᵉ cible (provisioning + rotation, testée : « Kurrier mdp tourné »).
 **Prochaines étapes :**
 - [ ] Feature 4 demandée : bouton **Archiver** dans le webmail (OVH le supporte) — à investiguer/coder
 - [ ] Onboarder Laurine + Timothée (`creds-sync.py --only laurine --only timothee`) quand tu veux
-- [ ] Optionnel (geste admin coffre) : ajouter `api_admin_key` à `secret/apps/kurrier` (existe déjà, create-only refuse l'update)
+- [x] Coffre : `api_admin_key` ajoutée à `secret/apps/kurrier` (kv patch, v2, token admin fourni puis révoqué — 13/08)
 - [ ] Upstream : issue + 3 PR depuis les branches feature ; signaler aussi le bug request.url du flow Google et le bug `upsertSMTPAccount` (dashboard.ts ~l.154)
 - [ ] Après merge upstream : revenir sur les images kurrier-org/*
