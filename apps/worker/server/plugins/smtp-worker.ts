@@ -123,9 +123,13 @@ export default defineNitroPlugin(async (nitroApp) => {
 			} else if (job.name === "mailbox:add-new") {
 				const identityId = job.data.identityId;
 				const client = await initSmtpClient(identityId, imapInstances);
-				if (client) {
-					await addNewFolder(job.data, client);
+				if (!client) {
+					// Fail loudly so BullMQ retries instead of "completing" a no-op
+					throw new Error(
+						`IMAP client unavailable for identity ${identityId}`,
+					);
 				}
+				await addNewFolder(job.data, client);
 			} else if (job.name === "mailbox:delete-folder") {
 				const identityId = job.data.identityId;
 				const client = await initSmtpClient(identityId, imapInstances);
