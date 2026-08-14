@@ -48,9 +48,24 @@ function MailListHeader({
 }) {
 	const { state, setState } = useDynamicContext<{
 		selectedThreadIds: Set<string>;
+		removedThreadIds?: Set<string>;
 		activeMailbox?: MailboxEntity | null;
 		identityPublicId: string;
 	}>();
+
+	// Moves run through the worker queue: hide the rows optimistically so
+	// they disappear on click instead of on the next server render.
+	const hideSelectedOptimistically = () => {
+		const ids = Array.from(state?.selectedThreadIds ?? []);
+		setState((prev) => ({
+			...(prev ?? {}),
+			selectedThreadIds: new Set(),
+			removedThreadIds: new Set([
+				...(prev?.removedThreadIds ?? []),
+				...ids,
+			]),
+		}));
+	};
 
 	const identityIdRef = useRef<string | undefined>(activeMailbox?.identityId);
 	const mailboxIdRef = useRef<string | undefined>(activeMailbox?.id);
@@ -93,16 +108,13 @@ function MailListHeader({
 	};
 
 	const deleteThreads = async () => {
+		const ids = Array.from(state?.selectedThreadIds ?? []);
+		hideSelectedOptimistically();
 		if (mailboxKind.current === "trash") {
-			await removeTrash();
+			await removeTrash(ids);
 			return;
 		}
-		await moveToTrash(
-			Array.from(state?.selectedThreadIds ?? []),
-			String(mailboxIdRef.current),
-			!!mailboxSync,
-			true,
-		);
+		await moveToTrash(ids, String(mailboxIdRef.current), !!mailboxSync, true);
 		toast.success("Messages moved to Trash", { position: "bottom-left" });
 	};
 
@@ -118,18 +130,15 @@ function MailListHeader({
 		mailboxKind.current !== "trash";
 
 	const archiveThreads = async () => {
-		await moveToArchive(
-			Array.from(state?.selectedThreadIds ?? []),
-			String(mailboxIdRef.current),
-			!!mailboxSync,
-			true,
-		);
+		const ids = Array.from(state?.selectedThreadIds ?? []);
+		hideSelectedOptimistically();
+		await moveToArchive(ids, String(mailboxIdRef.current), !!mailboxSync, true);
 		toast.success("Messages moved to Archive", { position: "bottom-left" });
 	};
 
-	const removeTrash = async () => {
+	const removeTrash = async (ids?: string[]) => {
 		await deleteForever(
-			Array.from(state?.selectedThreadIds ?? []),
+			ids ?? Array.from(state?.selectedThreadIds ?? []),
 			String(mailboxIdRef.current),
 			!!mailboxSync,
 			true,
