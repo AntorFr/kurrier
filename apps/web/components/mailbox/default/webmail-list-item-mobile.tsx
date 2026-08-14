@@ -111,18 +111,21 @@ export default function WebmailListItemMobile({
 	}>();
 
 	// Moves run through the worker queue: hide the row optimistically so it
-	// disappears on tap instead of on the next server render.
+	// disappears on tap instead of on the next server render. Scoped to
+	// the source mailbox — the context survives navigation between folders,
+	// and the same thread must still show up in its destination.
+	const removalKey = `${activeMailbox.id}:${mailboxThreadItem.threadId}`;
 	const hideOptimistically = () => {
 		setState((prev) => ({
 			...(prev ?? {}),
 			removedThreadIds: new Set([
 				...(prev?.removedThreadIds ?? []),
-				mailboxThreadItem.threadId,
+				removalKey,
 			]),
 		}));
 	};
 
-	if (state?.removedThreadIds?.has(mailboxThreadItem.threadId)) {
+	if (state?.removedThreadIds?.has(removalKey)) {
 		return null;
 	}
 
