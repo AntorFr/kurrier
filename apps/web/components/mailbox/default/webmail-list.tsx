@@ -15,7 +15,7 @@ import WebmailListItem from "@/components/mailbox/default/webmail-list-item";
 import { DynamicContextProvider } from "@/hooks/use-dynamic-context";
 import { useMediaQuery } from "@mantine/hooks";
 import WebmailListItemMobile from "@/components/mailbox/default/webmail-list-item-mobile";
-import { useParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {use} from "react";
 
 type WebListProps = {
@@ -44,7 +44,11 @@ export default function WebmailList({
 	const activeMailbox = fetchedMailbox.activeMailbox as MailboxEntity
 	const identityMailboxes = use(identityMailboxesPromise)
 	const isMobile = useMediaQuery("(max-width: 768px)");
-	const params = useParams();
+	// Gate on the URL, not useParams(): a retained parallel-route slot keeps
+	// its [threadId] param alive after navigating back to the mailbox, which
+	// left the list hidden. The pathname always reflects the real location.
+	const pathname = usePathname();
+	const threadOpen = pathname?.includes("/threads/");
 
 	// Archive action only makes sense when the identity has an archive folder
 	const hasArchive = identityMailboxes.some(
@@ -54,7 +58,7 @@ export default function WebmailList({
 	);
 
 	return (
-		<div className={params?.threadId ? "hidden" : ""}>
+		<div className={threadOpen ? "hidden" : ""}>
 			<DynamicContextProvider
 				initialState={{
 					selectedThreadIds: new Set(),

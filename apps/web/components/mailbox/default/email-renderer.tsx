@@ -151,13 +151,16 @@ function EmailRenderer({
 	useEffect(() => {
 		if (!sentMailboxId && !seenRef.current) {
 			seenRef.current = true;
-			fetchSentMailbox();
+			// Convenience lookup: an identity without a sent mailbox (or a
+			// transient failure) must not take the whole thread view down
+			// with an unhandled rejection.
+			fetchSentMailbox().catch(() => {});
 		}
 	}, []);
 
 	useEffect(() => {
 		if (activeMailboxId) {
-			markAsRead(threadId, activeMailboxId, markSmtp, true);
+			markAsRead(threadId, activeMailboxId, markSmtp, true).catch(() => {});
 		}
 	}, [activeMailboxId]);
 
