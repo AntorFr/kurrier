@@ -66,7 +66,11 @@ export async function addNewFolder(
 	try {
 		await client.mailboxCreate(newPath);
 	} catch (err: any) {
-		if (!/exists|already/i.test(String(err?.message))) throw err;
+		// ImapFlow reports server rejections as "Command failed" and keeps the
+		// detail in responseText — check both, or retries after a partial
+		// failure can never get past an already-created folder.
+		const detail = `${err?.message ?? ""} ${err?.responseText ?? ""} ${err?.serverResponseCode ?? ""}`;
+		if (!/exists|already/i.test(detail)) throw err;
 	}
 
 	try {
@@ -81,8 +85,8 @@ export async function addNewFolder(
 			ownerId: data.ownerId,
 			workspaceId: identity.workspaceId,
 			identityId: data.identityId,
-			parentId:
-				String(data.parentId)?.trim().length > 0 ? String(data.parentId) : null,
+			// String(undefined/null) is "undefined"/"null" — a truthy, invalid uuid
+			parentId: data.parentId ? String(data.parentId) : null,
 			kind: (data.kind as any) ?? "custom",
 			name: safeName,
 			slug: slugify(safeName.toLowerCase()),
