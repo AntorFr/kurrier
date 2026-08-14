@@ -1,6 +1,7 @@
 import React, {Suspense} from "react";
 import {fetchMailbox, fetchThreadMailSubscriptions, fetchWebMailThreadDetail} from "@/lib/actions/mailbox";
 import ThreadItem from "@/components/mailbox/default/thread-item";
+import ThreadSlotGuard from "@/components/mailbox/default/thread-slot-guard";
 import { Divider } from "@mantine/core";
 import {MessageEntity} from "@db";
 import Loading from "@/app/loading";
@@ -32,7 +33,7 @@ async function Page({
     });
 
 	return (
-		<>
+		<ThreadSlotGuard>
 			{activeThread?.messages.map((message, threadIndex) => {
 				return (
 					<Suspense fallback={<Loading />}>
@@ -52,7 +53,7 @@ async function Page({
 					</Suspense>
 				);
 			})}
-		</>
+		</ThreadSlotGuard>
 	);
 }
 
