@@ -54,15 +54,19 @@ function MailListHeader({
 	}>();
 
 	// Moves run through the worker queue: hide the rows optimistically so
-	// they disappear on click instead of on the next server render.
+	// they disappear on click instead of on the next server render. Keys
+	// are scoped to the source mailbox — the context survives navigation
+	// between folders, and the threads must still show in their destination.
 	const hideSelectedOptimistically = () => {
-		const ids = Array.from(state?.selectedThreadIds ?? []);
+		const keys = Array.from(state?.selectedThreadIds ?? []).map(
+			(id) => `${mailboxIdRef.current}:${id}`,
+		);
 		setState((prev) => ({
 			...(prev ?? {}),
 			selectedThreadIds: new Set(),
 			removedThreadIds: new Set([
 				...(prev?.removedThreadIds ?? []),
-				...ids,
+				...keys,
 			]),
 		}));
 	};
