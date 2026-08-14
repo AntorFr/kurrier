@@ -2,7 +2,7 @@
 
 > MàJ : 2026-08-14
 
-**État :** Prod = `v3.2.1-antor.6` (mail.berard.me, tantive). Toute la famille
+**État :** Prod = `v3.2.1-antor.7` (mail.berard.me, tantive). Fix 404 racine : les redirects « déjà connecté » (/ et layout auth) passent par getWorkspaceRedirectUrl (branche fix/signed-in-redirects, PR upstream à ouvrir). Toute la famille
 onboardée (4 users, boîtes OVH Zimbra synchronisées, IDLE actif). **Bouton
 Archiver livré** (desktop + mobile + sélection multiple) et 4 dossiers Archive
 créés côté Zimbra. **Review upstream intégrée** : identité OIDC sub-first
