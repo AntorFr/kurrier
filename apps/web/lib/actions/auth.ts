@@ -286,6 +286,36 @@ export async function createSessionForUser(userId: string) {
 	await setAuthToken(token);
 }
 
+/**
+ * Read-only variant of getWorkspaceRedirectUrl, safe to call while
+ * rendering a server component (no cookie writes). Use it for redirects
+ * from pages/layouts; the workspace-context cookies are already set by
+ * the login flows.
+ */
+export async function resolveWorkspaceRedirectUrl(user: { id: string }) {
+	const [workspace] = await db
+		.select()
+		.from(workspaces)
+		.where(eq(workspaces.ownerId, user.id));
+
+	if (!workspace) {
+		return "/auth/login";
+	}
+
+	if (workspace.defaultIdentityId) {
+		const [defaultIdentity] = await db
+			.select()
+			.from(identities)
+			.where(eq(identities.id, workspace.defaultIdentityId));
+
+		if (defaultIdentity) {
+			return `/w/${workspace.publicId}/dashboard/mail/${defaultIdentity.publicId}/inbox`;
+		}
+	}
+
+	return `/w/${workspace.publicId}/dashboard/platform/overview`;
+}
+
 export async function getWorkspaceRedirectUrl(user: typeof users.$inferSelect, locale?: string) {
 	const [workspace] = await db
 		.select()
