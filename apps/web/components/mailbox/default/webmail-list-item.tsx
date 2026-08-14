@@ -203,7 +203,24 @@ export default function WebmailListItem({
 
 	const { state, setState } = useDynamicContext<{
 		selectedThreadIds: Set<string>;
+		removedThreadIds?: Set<string>;
 	}>();
+
+	// Moves run through the worker queue: hide the row optimistically so it
+	// disappears on click instead of on the next server render.
+	const hideOptimistically = () => {
+		setState((prev) => ({
+			...(prev ?? {}),
+			removedThreadIds: new Set([
+				...(prev?.removedThreadIds ?? []),
+				mailboxThreadItem.threadId,
+			]),
+		}));
+	};
+
+	if (state?.removedThreadIds?.has(mailboxThreadItem.threadId)) {
+		return null;
+	}
 
 	return (
 		<>
@@ -363,6 +380,7 @@ export default function WebmailListItem({
 						activeMailbox.kind !== "trash" && (
 							<button
 								onClick={async () => {
+									hideOptimistically();
 									await moveToArchive(
 										mailboxThreadItem.threadId,
 										activeMailbox.id,
@@ -382,6 +400,7 @@ export default function WebmailListItem({
 
 					<button
 						onClick={async () => {
+							hideOptimistically();
 							await moveToTrash(
 								mailboxThreadItem.threadId,
 								activeMailbox.id,
