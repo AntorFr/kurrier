@@ -1,42 +1,39 @@
 # Status — kurrier (fork local)
 
-> MàJ : 2026-08-13 (soir)
+> MàJ : 2026-08-14
 
-**État :** **Tout est en prod et validé en réel** (mail.berard.me, tantive, image
-`ghcr.io/antorfr/kurrier-{web,worker}:v3.2.1-antor.3`). Login SSO Authelia confirmé
-par l'utilisateur dans le navigateur. Onboarding complet testé sur Émilie : user
-pré-provisionné AVANT son 1er login (`POST /users` created:true), boîte OVH Zimbra
-câblée (`backfill: completed`, boucle IDLE active). creds-sync a désormais Kurrier
-en 4ᵉ cible (provisioning + rotation, testée : « Kurrier mdp tourné »).
+**État :** Prod = `v3.2.1-antor.6` (mail.berard.me, tantive). Toute la famille
+onboardée (4 users, boîtes OVH Zimbra synchronisées, IDLE actif). **Bouton
+Archiver livré** (desktop + mobile + sélection multiple) et 4 dossiers Archive
+créés côté Zimbra. **Review upstream intégrée** : identité OIDC sub-first
+(issuer+sub via auth_accounts, email seulement au 1er login et si vérifié).
 
-**Branches (poussées sur AntorFr/kurrier) :**
-- `feat/generic-oidc-login` (8b7314f + fbae59d) — OIDC générique via env.
-  fbae59d est CRITIQUE : Next standalone réécrit `request.url` (host = pod) et
-  openid-client v6 en dérive le redirect_uri ⇒ tout ancré sur `WEB_URL`.
-  Le flow Google upstream a le même bug (à signaler).
-- `feat/provisioning-api` (9e63d19) — CRUD `/api/kurrier/smtp-accounts`
-  + `POST /api/kurrier/identities` (backfill IMAP, statut renvoyé).
-- `feat/admin-api-key` (4260da4, basée sur provisioning-api) — clé admin
-  d'instance `API_ADMIN_KEY` (env worker, opt-in, 32+ chars) : `POST /users`
-  (pré-provision avant 1er login, idempotent) + `userEmail` on-behalf sur
-  smtp-accounts/identities. Décision : pas de clé par utilisateur (les enfants
-  ne créent pas de clé API).
-- `antor/integration` — merge des trois + workflow `fork-images.yml` + ce fichier.
-  Ne JAMAIS pousser upstream.
+**Upstream (kurrier-org/kurrier) :**
+- Issues #497 (OIDC générique), #498 (API provisioning), #499 (bug request.url),
+  #500 (bug upsertSMTPAccount).
+- PR **#501** (OIDC générique) — review positive de krokhale, refonte sub-first
+  demandée → **poussée** (b49e161, inclut sa version du callback Google + ancrage
+  WEB_URL qui ferme #499) + réponse postée. PR **#502** (provisioning) et
+  **#503** (clé admin, stacked sur 502) — en attente de review.
+- À proposer aussi : les fixes création de dossier (workspace_id non évalué hors
+  session RLS, `String(undefined)` en parentId, exists-detection responseText,
+  no-op silencieux du handler add-new) — commis 4260da4^..ec42421 sur
+  feat/archive-button ; le bouton Archiver lui-même peut faire une 4ᵉ PR.
 
-**Déploiement (k8s-home-lab + creds-sync) :**
-- `clusters/tantive/tools/mail/kurrier-helm-config.yml` : images fork antor.3,
-  `dbInit.sourceRepo` → fork, env `OIDC_*` + `API_ADMIN_KEY` (envFile).
-- `clusters/homenode/infra/authelia-helm-config.yml` : client `kurrier`
-  (secret clair aussi dans `secret/oidc/kurrier` au coffre).
-- creds-sync : cible Kurrier (lit API_ADMIN_KEY du Secret `kurrier-env`,
-  port-forward éphémère). Onboarder Laurine/Timothée = `creds-sync.py --only <user>`.
-- Nouvelle version : tag `v3.2.1-antor.N+1` sur antor/integration → CI fork
-  → bump `image.tag` du manifeste (Renovate ne suit pas ce pattern -antor).
+**Branches (fork AntorFr/kurrier) :**
+- `feat/generic-oidc-login` — OIDC générique + sub-first + fix WEB_URL (PR #501).
+- `feat/provisioning-api` — API smtp-accounts/identities (PR #502).
+- `feat/admin-api-key` — clé admin + POST /users (PR #503).
+- `feat/archive-button` — bouton Archiver + fixes création de dossier (pas encore de PR).
+- `antor/integration` — merge de tout + workflow fork-images + ce fichier. JAMAIS upstream.
+
+**Déploiement :** manifeste tantive/tools/mail (images antor.6, dbInit → fork,
+OIDC_* + API_ADMIN_KEY) ; client Authelia homenode ; coffre : secret/oidc/kurrier
++ apps/kurrier (api_admin_key). creds-sync = 4 cibles dont Kurrier.
+Nouvelle version : tag v3.2.1-antor.N+1 sur antor/integration → CI → bump manuel.
 
 **Prochaines étapes :**
-- [ ] Feature 4 demandée : bouton **Archiver** dans le webmail (OVH le supporte) — à investiguer/coder
-- [ ] Onboarder Laurine + Timothée (`creds-sync.py --only laurine --only timothee`) quand tu veux
-- [x] Coffre : `api_admin_key` ajoutée à `secret/apps/kurrier` (kv patch, v2, token admin fourni puis révoqué — 13/08)
-- [ ] Upstream : issue + 3 PR depuis les branches feature ; signaler aussi le bug request.url du flow Google et le bug `upsertSMTPAccount` (dashboard.ts ~l.154)
-- [ ] Après merge upstream : revenir sur les images kurrier-org/*
+- [ ] L'utilisateur re-teste : login SSO (chemin sub-first) + bouton Archiver dans le webmail
+- [ ] Ouvrir la PR #4 upstream : bouton Archiver + fixes dossier (attendre le verdict de #501 ?)
+- [ ] Feature 5 : regroupement par conversation (type Gmail/Outlook) — noter que le schéma a déjà threads/mailboxThreads, à investiguer
+- [ ] Suivre les reviews #501/#502/#503 ; après merges : revenir sur images kurrier-org/*
