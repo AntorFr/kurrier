@@ -14,7 +14,39 @@ permissions:
   packages: write
 
 jobs:
+  # Gate: no image ships unless web and worker typecheck.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.0.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck web
+        run: pnpm --prefix apps/web exec tsc --noEmit
+
+      - name: Typecheck worker
+        # Known pre-existing upstream failures are tolerated (migration seeds,
+        # ses.ts unused var); anything else fails the gate.
+        run: |
+          pnpm --prefix apps/web exec tsc -p ../worker/tsconfig.json --noEmit > worker-tsc.log 2>&1 || true
+          if grep -vE "lib/migrations/|packages/providers/src/mail/ses.ts" worker-tsc.log | grep -E "error TS"; then
+            echo "::error::new worker type errors (above)"; exit 1
+          fi
+          echo "worker typecheck clean (modulo known upstream baseline)"
+
   build:
+    needs: check
     runs-on: ubuntu-latest
     strategy:
       matrix:
