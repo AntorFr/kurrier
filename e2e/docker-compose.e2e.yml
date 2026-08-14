@@ -1,0 +1,27 @@
+# E2E-only companions to the dev stack (db/docker-compose.dev.yml):
+# - greenmail: throwaway SMTP/IMAP server standing in for the real mail host
+# - mock-oidc: OIDC identity provider standing in for the real IdP
+# Start with: docker compose -f e2e/docker-compose.e2e.yml up -d
+services:
+  greenmail:
+    image: greenmail/standalone:2.1.8
+    environment:
+      GREENMAIL_OPTS: >-
+        -Dgreenmail.setup.test.smtp
+        -Dgreenmail.setup.test.imap
+        -Dgreenmail.hostname=0.0.0.0
+        -Dgreenmail.auth.disabled
+        -Dgreenmail.verbose
+    ports:
+      - "3025:3025" # SMTP (plain)
+      - "3143:3143" # IMAP (plain)
+
+  mock-oidc:
+    image: ghcr.io/navikt/mock-oauth2-server:2.1.10
+    environment:
+      SERVER_PORT: 8091
+      JSON_CONFIG: >-
+        {"interactiveLogin": true,
+         "tokenProvider": {"keyProvider": {"algorithm": "RS256"}}}
+    ports:
+      - "8091:8091"
