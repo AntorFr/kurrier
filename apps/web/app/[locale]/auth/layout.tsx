@@ -1,5 +1,4 @@
-import { getWorkspaceRedirectUrl, isSignedIn } from "@/lib/actions/auth";
-import type { UserEntity } from "@db";
+import { isSignedIn, resolveWorkspaceRedirectUrl } from "@/lib/actions/auth";
 import { redirect } from "next/navigation";
 
 export default async function DashboardLayout({
@@ -12,8 +11,9 @@ export default async function DashboardLayout({
 	if (user) {
 		// Send signed-in users to their workspace (the bare
 		// /dashboard/platform/overview path has no /w/<workspace> segment
-		// and 404s).
-		redirect(await getWorkspaceRedirectUrl(user as UserEntity));
+		// and 404s). The read-only resolver is deliberate: layouts render
+		// as server components and must not write cookies.
+		redirect(await resolveWorkspaceRedirectUrl(user));
 	}
 
 	return <>{children}</>;
