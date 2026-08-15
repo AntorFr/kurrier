@@ -1,12 +1,15 @@
 # Status — kurrier (fork local)
 
-> MàJ : 2026-08-14
+> MàJ : 2026-08-15
 
-**État :** Prod = `v3.2.1-antor.7` (mail.berard.me, tantive). Fix 404 racine : les redirects « déjà connecté » (/ et layout auth) passent par getWorkspaceRedirectUrl (branche fix/signed-in-redirects, PR upstream à ouvrir). Toute la famille
-onboardée (4 users, boîtes OVH Zimbra synchronisées, IDLE actif). **Bouton
-Archiver livré** (desktop + mobile + sélection multiple) et 4 dossiers Archive
-créés côté Zimbra. **Review upstream intégrée** : identité OIDC sub-first
-(issuer+sub via auth_accounts, email seulement au 1er login et si vérifié).
+**État :** Prod en cours de bascule vers `v3.2.1-antor.13`. **Les 5 features sont
+implémentées.** Gate CI tsc actif sur fork-images. **Suite e2e Playwright : 9/9**
+(stack locale compose + greenmail + mock-oidc, seed via l'API admin — voir e2e/README).
+Feature 5 (conversations) : adoption d'orphelins (parent après réponses, GIN sur
+messages.references) + repli par sujet normalisé (threads.normalized_subject,
+migration 005) — badge de compteur UI existant s'allume naturellement. La
+construction du harnais a débusqué et corrigé 3 bugs de plus (liste masquée par le
+useParams du slot retenu, viewer tué par rejection non gérée, IdP http refusé).
 
 **Upstream (kurrier-org/kurrier) :**
 - Issues #497 (OIDC générique), #498 (API provisioning), #499 (bug request.url),
