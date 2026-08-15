@@ -704,6 +704,9 @@ export const messages = pgTable(
 		index("idx_messages_mailbox_date").on(t.mailboxId, t.date),
 		index("idx_messages_mailbox_seen_date").on(t.mailboxId, t.seen, t.date),
 		index("ix_messages_thread").on(t.threadId),
+		// Orphan adoption: find already-synced replies that reference a
+		// message which only arrives now.
+		index("ix_messages_references_gin").using("gin", t.references),
 		...workspaceCrudPolicies(t, "messages"),
 	],
 ).enableRLS();
@@ -723,6 +726,10 @@ export const threads = pgTable(
 			.references(() => messages.id, { onDelete: "set null" })
 			.default(null),
 
+		// Subject with Re:/Fwd:-style prefixes stripped, lowercased — the
+		// conversation-grouping fallback when reply headers are missing.
+		normalizedSubject: text("normalized_subject"),
+
 		messageCount: integer("message_count").notNull().default(0),
 
 		workspaceId: uuid("workspace_id")
@@ -739,6 +746,11 @@ export const threads = pgTable(
 	},
 	(t) => [
 		index("ix_threads_workspace").on(t.workspaceId),
+		index("ix_threads_owner_norm_subject").on(
+			t.ownerId,
+			t.normalizedSubject,
+			t.lastMessageDate,
+		),
 		...workspaceCrudPolicies(t, "threads"),
 	],
 ).enableRLS();

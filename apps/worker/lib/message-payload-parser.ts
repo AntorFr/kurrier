@@ -18,6 +18,7 @@ import { getRedis } from "../lib/get-redis";
 import {s3} from "../lib/create-s3-client";
 import {PutObjectCommand} from "@aws-sdk/client-s3";
 import {upsertWorkspaceSharedContactFromMessage} from "../lib/message-parser-contacts";
+import { mergeThreads, normalizeSubject } from "../lib/threading";
 
 const SEARCH_BATCH_SIZE = 100;
 const WEBHOOK_BATCH_SIZE = 100;
@@ -152,10 +153,13 @@ export async function createOrInitializeThread(
 	const candidates = Array.from(
 		new Set([inReplyTo, ...refs].filter(Boolean).map((s) => String(s))),
 	);
+	const ownMessageId = parsed.messageId?.trim() || null;
+	const normalized = normalizeSubject(parsed.subject);
 
 	return db.transaction(async (tx) => {
-		let existingThread = null;
+		let existingThread: typeof threads.$inferSelect | null = null;
 
+		// 1) Reply headers: adopt the referenced parent's thread.
 		if (candidates.length > 0) {
 			const parentMsgs = await tx
 				.select({
@@ -188,7 +192,71 @@ export async function createOrInitializeThread(
 			}
 		}
 
-		if (existingThread) return existingThread;
+		// 2) Orphan adoption: replies to THIS message may already be synced
+		// (out-of-order ingestion, typically during backfill). Their threads
+		// belong to this conversation — fold them together.
+		if (ownMessageId) {
+			const children = await tx
+				.select({ threadId: messages.threadId })
+				.from(messages)
+				.where(
+					and(
+						eq(messages.ownerId, ownerId),
+						sql`(${messages.inReplyTo} = ${ownMessageId} OR ${messages.references} @> ARRAY[${ownMessageId}]::text[])`,
+					),
+				);
+
+			const childThreadIds = Array.from(
+				new Set(children.map((c) => c.threadId).filter(Boolean)),
+			) as string[];
+
+			if (childThreadIds.length) {
+				if (!existingThread) {
+					const [t] = await tx
+						.select()
+						.from(threads)
+						.where(eq(threads.id, childThreadIds[0]));
+					if (t) existingThread = t;
+				}
+				const losers = childThreadIds.filter(
+					(id) => id !== existingThread?.id,
+				);
+				if (existingThread && losers.length) {
+					await mergeThreads(tx, existingThread.id, losers);
+				}
+			}
+		}
+
+		// 3) Subject fallback (the Outlook-style conversation grouping):
+		// no usable header linkage — group with a recent thread that shares
+		// the normalized subject.
+		if (!existingThread && normalized) {
+			const [t] = await tx
+				.select()
+				.from(threads)
+				.where(
+					and(
+						eq(threads.ownerId, ownerId),
+						eq(threads.normalizedSubject, normalized),
+						sql`${threads.lastMessageDate} > now() - interval '14 days'`,
+					),
+				)
+				.orderBy(desc(threads.lastMessageDate))
+				.limit(1);
+			if (t) existingThread = t;
+		}
+
+		if (existingThread) {
+			// Late repair: threads created before this feature (or from a
+			// subjectless first message) learn their normalized subject.
+			if (!existingThread.normalizedSubject && normalized) {
+				await tx
+					.update(threads)
+					.set({ normalizedSubject: normalized })
+					.where(eq(threads.id, existingThread.id));
+			}
+			return existingThread;
+		}
 
 		const [newThread] = await tx
 			.insert(threads)
@@ -196,6 +264,7 @@ export async function createOrInitializeThread(
 				ownerId,
 				workspaceId,
 				lastMessageDate: parsed.date ?? new Date(),
+				normalizedSubject: normalized,
 			})
 			.returning();
 
