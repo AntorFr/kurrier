@@ -14,10 +14,10 @@ useParams du slot retenu, viewer tué par rejection non gérée, IdP http refus�
 **Upstream (kurrier-org/kurrier) :**
 - Issues #497 (OIDC générique), #498 (API provisioning), #499 (bug request.url),
   #500 (bug upsertSMTPAccount).
-- PR **#501** (OIDC générique) — review positive de krokhale, refonte sub-first
-  demandée → **poussée** (b49e161, inclut sa version du callback Google + ancrage
-  WEB_URL qui ferme #499) + réponse postée. PR **#502** (provisioning) et
-  **#503** (clé admin, stacked sur 502) — en attente de review.
+- PR **#501** (OIDC générique) et **#502** (provisioning) : **MERGÉES upstream**
+  le 15/08. **#503** (clé admin) : « Looks good to me », rebasée sur main
+  (1 commit), attend le merge. Branches restantes rebasées sur origin/main.
+  antor/integration porte upstream main + nos features restantes (antor.15).
 - À proposer aussi : les fixes création de dossier (workspace_id non évalué hors
   session RLS, `String(undefined)` en parentId, exists-detection responseText,
   no-op silencieux du handler add-new) — commis 4260da4^..ec42421 sur
