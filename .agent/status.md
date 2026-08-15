@@ -2,7 +2,7 @@
 
 > MàJ : 2026-08-15
 
-**État :** Prod en cours de bascule vers `v3.2.1-antor.13`. **Les 5 features sont
+**État :** Prod = `v3.2.1-antor.14` (migration 005 appliquée, vérifiée en base). **Les 5 features sont
 implémentées.** Gate CI tsc actif sur fork-images. **Suite e2e Playwright : 9/9**
 (stack locale compose + greenmail + mock-oidc, seed via l'API admin — voir e2e/README).
 Feature 5 (conversations) : adoption d'orphelins (parent après réponses, GIN sur
