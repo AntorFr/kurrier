@@ -444,6 +444,31 @@ async function startRealtimeSyncForIdentity(
 			return;
 		}
 
+		/*
+		 * Catch up on whatever arrived while this identity had no live IDLE
+		 * connection. Realtime only reacts to EXISTS, so without this a
+		 * restart (or any reconnect) leaves every message delivered during
+		 * the gap invisible until the *next* one arrives and triggers a
+		 * delta fetch. Runs before the handlers are attached so it cannot
+		 * race a concurrent EXISTS-driven fetch, and a failure here must
+		 * never keep the connection out of IDLE.
+		 */
+		try {
+			await deltaFetch(identityId, imapInstances);
+		} catch (err) {
+			console.error(
+				`[realtime:${identityId}] catch-up delta fetch failed`,
+				err,
+			);
+		}
+
+		if (
+			realtimeShuttingDown ||
+			stoppedIdentities.has(identityId)
+		) {
+			return;
+		}
+
 		attachRealtimeEventHandlers(
 			identityId,
 			client,
