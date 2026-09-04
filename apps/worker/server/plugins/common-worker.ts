@@ -1,15 +1,67 @@
 import { defineNitroPlugin } from "nitropack/runtime";
 import { JobScheduler, Worker } from "bullmq";
-import { getRedis } from "../../lib/get-redis";
+import { redisConnection } from "../../lib/get-redis";
 import { db, mailboxThreads, MessageEntity, providers } from "@db";
-import { PROVIDERS, STORAGE_PROVIDERS } from "@schema";
+import {INBOUND_SPEC, JMAP_SPEC, MAILTRAP_SPEC, PROVIDERS, STORAGE_PROVIDERS} from "@schema";
 import { kvDel, kvGet, kvSet } from "@common";
 import { processWebhook } from "../../lib/webhooks/message.received";
 import { and, isNull, lte } from "drizzle-orm";
 import { processRules } from "../../lib/rules/rules-processor";
 
+import { PutBucketCorsCommand } from "@aws-sdk/client-s3";
+import { s3 } from "../../lib/create-s3-client";
+import { getServerEnv } from "@schema";
+
 export default defineNitroPlugin(async (nitroApp) => {
-	const connection = (await getRedis()).connection;
+	const connection = redisConnection.connection
+	try {
+		const { S3_BUCKET } = getServerEnv();
+
+		const isProduction =
+			process.env.NODE_ENV === "production";
+
+		const allowedOrigin = isProduction
+			? process.env.WEB_URL
+			: "*";
+
+		if (S3_BUCKET && allowedOrigin) {
+			await s3.send(
+				new PutBucketCorsCommand({
+					Bucket: S3_BUCKET,
+					CORSConfiguration: {
+						CORSRules: [
+							{
+								AllowedOrigins: [
+									allowedOrigin,
+								],
+								AllowedMethods: [
+									"GET",
+									"PUT",
+									"POST",
+									"DELETE",
+									"HEAD",
+								],
+								AllowedHeaders: ["*"],
+								ExposeHeaders: ["ETag"],
+								MaxAgeSeconds: 3600,
+							},
+						],
+					},
+				}),
+			);
+
+			console.info(
+				"[COMMON] S3 bucket CORS configured",
+			);
+		}
+	} catch (err: any) {
+		console.error(
+			"[COMMON] Failed to configure S3 bucket CORS:",
+			err?.message ?? err,
+		);
+	}
+
+
 
 	const worker = new Worker(
 		"common-worker",
@@ -21,7 +73,7 @@ export default defineNitroPlugin(async (nitroApp) => {
 					await db
 						.insert(providers)
 						.values(
-							[...PROVIDERS, ...STORAGE_PROVIDERS].map((k) => ({
+							[...PROVIDERS, ...STORAGE_PROVIDERS, INBOUND_SPEC, JMAP_SPEC, MAILTRAP_SPEC].map((k) => ({
 								type: k.key,
 								ownerId: userId,
 								workspaceId: workspaceId,
@@ -79,21 +131,6 @@ export default defineNitroPlugin(async (nitroApp) => {
 		"snooze-tick-scheduler",
 		{ every: 60000 },
 		"mail:snooze-tick",
-		{},
-		{
-			removeOnComplete: true,
-			removeOnFail: false,
-			attempts: 1,
-		},
-		{ override: true },
-	);
-
-
-	await scheduler.upsertJobScheduler(
-		"billing-sync-scheduler",
-		// { every: 10000 },
-		{ every: 60 * 60 * 1000 },
-		"billing:sync",
 		{},
 		{
 			removeOnComplete: true,

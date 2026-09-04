@@ -2,7 +2,7 @@
 
 import { isSignedIn } from "@/lib/actions/auth";
 import {
-	driveEntries, DriveVolumeEntity,
+	driveEntries, driveUploadIntents, DriveVolumeEntity,
 	driveVolumes
 } from "@db";
 import { rlsClient } from "@/lib/actions/clients";
@@ -20,11 +20,19 @@ import {
 } from "@aws-sdk/client-s3";
 import {s3} from "@/lib/create-s3-client";
 import {getSignedUrl} from "@aws-sdk/s3-request-presigner";
+import { DISTRIBUTION_CONFIG } from "@distribution/config";
 
 
 const trimSlashes = (s: string) => s.replace(/^\/+|\/+$/g, "");
 
+function assertDriveEnabled() {
+	if (!DISTRIBUTION_CONFIG.features.drive) {
+		throw new Error("Drive is disabled");
+	}
+}
+
 export const normalizeWithinPath = async (segments: string[]) => {
+	assertDriveEnabled();
 	const cleaned = (segments ?? [])
 		.filter(Boolean)
 		.map((s) => trimSlashes(decodeURIComponent(s)));
@@ -56,6 +64,7 @@ export const normalizeWithinPath = async (segments: string[]) => {
 };
 
 export const fetchVolumes = async () => {
+	assertDriveEnabled();
 	const user = await isSignedIn();
 	const rls = await rlsClient();
 	return rls((tx) =>
@@ -67,6 +76,7 @@ export const fetchVolumes = async () => {
 };
 
 export const normalizeWithinPathString = async (path: unknown) => {
+	assertDriveEnabled();
 	const raw = typeof path === "string" ? path : "/";
 	const cleaned = "/" + trimSlashes(decodeURIComponent(raw));
 	return cleaned === "/" ? "/" : cleaned;
@@ -95,13 +105,14 @@ export async function addNewFolder(
 	formData: FormData,
 ): Promise<FormState> {
 	return handleAction(async () => {
+		assertDriveEnabled();
 		const decodedForm = decode(formData) as Record<string, unknown>;
 
 		const name =
 			typeof decodedForm.name === "string" ? decodedForm.name.trim() : "";
 
 		if (!name) {
-			return { success: false, error: "Folder name is required" };
+			return { success: false, error: "drive.folderNameRequired" };
 		}
 
 		const withinPath = await normalizeWithinPathString(decodedForm.path);
@@ -112,7 +123,7 @@ export async function addNewFolder(
 				: undefined;
 
 		if (!publicId) {
-			return { success: false, error: "Missing volume" };
+			return { success: false, error: "drive.missingVolume" };
 		}
 
 		const rls = await rlsClient();
@@ -128,17 +139,17 @@ export async function addNewFolder(
 		});
 
 		if (!volume) {
-			return { success: false, error: "Volume not found" };
+			return { success: false, error: "drive.volumeNotFound" };
 		}
 
 		if (volume.kind !== "cloud") {
-			return { success: false, error: "Invalid volume type" };
+			return { success: false, error: "drive.invalidVolumeType" };
 		}
 
 		const bucket = String(volume.metaData?.bucket || "").trim();
 
 		if (!bucket) {
-			return { success: false, error: "Cloud volume missing bucket" };
+			return { success: false, error: "drive.cloudVolumeMissingBucket" };
 		}
 
 		const volumePrefix = getVolumePrefix(volume);
@@ -209,26 +220,26 @@ export async function addNewFolder(
 				});
 		});
 
-		revalidatePath("/w/[workspaceId]/dashboard/drive");
+		revalidatePath(
+			"/[locale]/w/[wPublicId]/dashboard/drive/[[...segments]]",
+			"page",
+		);
 
 		return {
 			success: true,
-			message: "Folder created",
+			message: "drive.folderCreated",
 		};
 	});
 }
 
 
 
-export const refreshViewAfterUpload = async () => {
-	return revalidatePath("/w/[workspaceId]/dashboard/drive");
-};
-
 function getVolumePrefix(volume: DriveVolumeEntity) {
 	return `drive/workspaces/${volume.workspaceId}/${volume.code}/`;
 }
 
 export async function fetchCloudListPath(ctx: DriveRouteContext) {
+	assertDriveEnabled();
 	const volume = ctx.driveVolume;
 	if (!volume) return [];
 
@@ -342,7 +353,6 @@ function joinPaths(base: string, leaf: string) {
 	return out === "" ? "/" : out;
 }
 
-
 export async function getCloudUploadUrl(
 	ctx: DriveRouteContext,
 	input: {
@@ -351,6 +361,7 @@ export async function getCloudUploadUrl(
 		contentType?: string | null;
 	},
 ) {
+	assertDriveEnabled();
 	const volume = ctx.driveVolume;
 	if (!volume) throw new Error("Missing driveVolume");
 
@@ -369,6 +380,20 @@ export async function getCloudUploadUrl(
 	const fullPath = joinPaths(withinPath, filename);
 	const relativeKey = fullPath.replace(/^\/+/, "");
 	const key = `${volumePrefix}${relativeKey}`;
+
+	const uploadToken = crypto.randomUUID();
+
+	const rls = await rlsClient();
+
+	await rls((tx) =>
+		tx.insert(driveUploadIntents).values({
+			volumeId: volume.id,
+			token: uploadToken,
+			targetPath: fullPath,
+			singleUse: true,
+			expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+		}),
+	);
 
 	const url = await getSignedUrl(
 		s3,
@@ -392,6 +417,7 @@ export async function getCloudUploadUrl(
 		relativeKey,
 		method: "PUT",
 		url,
+		uploadToken,
 		headers: {
 			"Content-Type": input.contentType || "application/octet-stream",
 		},
@@ -400,6 +426,7 @@ export async function getCloudUploadUrl(
 
 
 export async function getDriveDownloadUrl(entryId: string) {
+	assertDriveEnabled();
 
 	const rls = await rlsClient();
 	const [entry] = await rls((tx) =>
@@ -424,6 +451,7 @@ export async function getDriveDownloadUrl(entryId: string) {
 
 export async function deleteDriveEntry(entryId: string) {
 	return handleAction(async () => {
+		assertDriveEnabled();
 		const rls = await rlsClient();
 
 		const [entry] = await rls((tx) =>
@@ -483,11 +511,14 @@ export async function deleteDriveEntry(entryId: string) {
 					),
 			);
 
-			revalidatePath("/w/[workspaceId]/dashboard/drive");
+			revalidatePath(
+				"/[locale]/w/[wPublicId]/dashboard/drive/[[...segments]]",
+				"page",
+			);
 
 			return {
 				success: true,
-				message: "Deleted folder",
+				message: "drive.deletedFolder",
 			};
 		}
 
@@ -509,11 +540,14 @@ export async function deleteDriveEntry(entryId: string) {
 				),
 		);
 
-		revalidatePath("/w/[workspaceId]/dashboard/drive");
+		revalidatePath(
+			"/[locale]/w/[wPublicId]/dashboard/drive/[[...segments]]",
+			"page",
+		);
 
 		return {
 			success: true,
-			message: "Deleted file",
+			message: "drive.deletedFile",
 		};
 	});
 }

@@ -1,4 +1,4 @@
-import { Providers } from "@schema";
+import type { Providers } from "@schema";
 
 export const PROVIDER_CONFIG: Record<
 	Providers,
@@ -58,5 +58,26 @@ export const PROVIDER_CONFIG: Record<
 		chip: "bg-gray-50 border-gray-200 text-gray-700",
 		chipDark: "dark:bg-gray-500/10 dark:border-gray-900/40",
 		textDark: "dark:text-gray-300",
+	},
+	inbound: {
+		name: "Kurrier Inbound",
+		dot: "bg-cyan-500",
+		chip: "bg-cyan-50 border-cyan-200 text-cyan-700",
+		chipDark: "dark:bg-cyan-500/10 dark:border-cyan-900/40",
+		textDark: "dark:text-cyan-300",
+	},
+	jmap: {
+		name: "JMAP",
+		dot: "bg-violet-500",
+		chip: "bg-violet-50 border-violet-200 text-violet-700",
+		chipDark: "dark:bg-violet-500/10 dark:border-violet-900/40",
+		textDark: "dark:text-violet-300",
+	},
+	mailtrap: {
+		name: "Mailtrap",
+		dot: "bg-emerald-500",
+		chip: "bg-emerald-50 border-emerald-200 text-emerald-700",
+		chipDark: "dark:bg-emerald-500/10 dark:border-emerald-900/40",
+		textDark: "dark:text-emerald-300",
 	},
 };

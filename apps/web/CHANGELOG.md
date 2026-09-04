@@ -1,5 +1,17 @@
 # web
 
+## 2.3.0
+
+### Minor Changes
+
+- [`9bdb9d7`](https://github.com/kurrier-org/kurrier/commit/9bdb9d7c5a5a5268481cee42dc8b7cbebea67965) Thanks [@krokhale](https://github.com/krokhale)! - Add JMAP mail provider (BETA) support and workspace-managed Google Mail OAuth credentials
+
+## 2.2.3
+
+### Patch Changes
+
+- [#560](https://github.com/kurrier-org/kurrier/pull/560) [`d533d67`](https://github.com/kurrier-org/kurrier/commit/d533d672e65552feefdc4ec9fafeb70b94c9292a) Thanks [@krokhale](https://github.com/krokhale)! - Security hardening for file uploads, message access, workspace data, and destructive mailbox actions.
+
 ## 2.2.2
 
 ### Patch Changes

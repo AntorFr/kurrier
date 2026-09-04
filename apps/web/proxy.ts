@@ -1,29 +1,38 @@
-import {type NextRequest, NextResponse} from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+import { LOCALES } from "@/lib/locale";
 import { updateSession } from "@/lib/supabase/middleware";
+import { DISTRIBUTION_CONFIG } from "@distribution/config";
 
-const locales = ["en", "ko"];
-const defaultLocale = "en";
+const locales = LOCALES;
+const defaultLocale = DISTRIBUTION_CONFIG.defaultLocale;
 
-function getRedirectLocale(request: NextRequest) {
-
-	const pathname = request.nextUrl.pathname;
-	const pathnameHasLocale = locales.some(
-		(locale) =>
-			pathname === `/${locale}` ||
-			pathname.startsWith(`/${locale}/`),
-	);
-	if (pathnameHasLocale) return null;
-	const locale =
-		request.cookies.get("locale")?.value ||
-		request.headers.get("accept-language")?.split(",")[0]?.split("-")[0] ||
-		defaultLocale;
-	return locales.includes(locale) ? locale : defaultLocale;
-
+function normalizeLocale(tag: string): string | null {
+	const lower = tag.toLowerCase();
+	const exact = locales.find((l) => l.toLowerCase() === lower);
+	if (exact) return exact;
+	const primary = lower.split("-")[0];
+	return locales.find((l) => l.toLowerCase().split("-")[0] === primary) ?? null;
 }
 
+function getRedirectLocale(request: NextRequest) {
+	const pathname = request.nextUrl.pathname;
+	const pathnameHasLocale = locales.some(
+		(locale) => pathname === `/${locale}` || pathname.startsWith(`/${locale}/`),
+	);
+	if (pathnameHasLocale) return null;
+	const cookieLocale = request.cookies.get("locale")?.value;
+	const acceptLanguageTag = request.headers
+		.get("accept-language")
+		?.split(",")[0];
+
+	return (
+		(cookieLocale && normalizeLocale(cookieLocale)) ||
+		(acceptLanguageTag && normalizeLocale(acceptLanguageTag)) ||
+		defaultLocale
+	);
+}
 
 export async function proxy(request: NextRequest) {
-
 	if (request.nextUrl.pathname.startsWith("/api")) {
 		return await updateSession(request);
 	}

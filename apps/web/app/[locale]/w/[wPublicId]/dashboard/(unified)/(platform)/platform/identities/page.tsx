@@ -1,21 +1,26 @@
+import { providerSecrets, smtpAccountSecrets } from "@db";
+import { ProviderLabels } from "@schema";
 import React from "react";
 import MailIdentities from "@/components/dashboard/identities/mail-identities";
+import { Separator } from "@/components/ui/separator";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
-	fetchDecryptedSecrets, fetchGoogleAccounts,
+	fetchDecryptedSecrets,
+	fetchGoogleAccounts,
 	fetchUserIdentities,
 	getProviderById,
 } from "@/lib/actions/dashboard";
-import { smtpAccountSecrets, providerSecrets } from "@db";
-import { ProviderLabels } from "@schema";
-import { parseSecret } from "@/lib/utils";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
 import {
 	fetchWorkspace,
-	fetchWorkspaceMembers, workspaceIdentityAssignments
+	fetchWorkspaceMembers,
+	workspaceIdentityAssignments,
 } from "@/lib/actions/workspace";
+import { getDictionary } from "@/lib/dictionaries";
+import { parseSecret } from "@/lib/utils";
 
-async function Page() {
+async function Page({ params }: { params: Promise<{ locale: string }> }) {
+	const { locale } = await params;
+	const dict = await getDictionary(locale);
 	const [userSmtpAccounts, userProviderAccounts] = await Promise.all([
 		fetchDecryptedSecrets({
 			linkTable: smtpAccountSecrets,
@@ -32,27 +37,37 @@ async function Page() {
 	const googleAccounts = await fetchGoogleAccounts();
 
 	const options = [];
+	const emailProviderTypes = ["ses", "mailgun", "postmark"];
+
 	for (const providerAccount of userProviderAccounts) {
 		const secret = parseSecret(providerAccount);
+
 		if (secret.verified) {
 			const provider = await getProviderById(
 				String(providerAccount.linkRow.providerId),
 			);
-			const providerName =
-				ProviderLabels[provider?.type || "unknown"] || "Unknown Provider";
-			if (provider) {
-				options.push({
-					label: providerName,
-					value: `provider-${String(providerAccount.linkRow.id)}`,
-				});
+
+			if (!provider || !emailProviderTypes.includes(provider.type)) {
+				continue;
 			}
+
+			const providerTypeKey = `providerName${provider.type.charAt(0).toUpperCase()}${provider.type.slice(1)}`;
+			const providerName =
+				(dict.platform as Record<string, string>)[providerTypeKey] ||
+				ProviderLabels[provider.type] ||
+				dict.platform.unknownProvider;
+
+			options.push({
+				label: providerName,
+				value: `provider-${String(providerAccount.linkRow.id)}`,
+			});
 		}
 	}
 	for (const smtpAccount of userSmtpAccounts) {
 		const secret = parseSecret(smtpAccount);
 		if (secret.sendVerified || secret.receiveVerified) {
 			options.push({
-				label: `SMTP Account (${secret.label})`,
+				label: `${dict.platform.smtpAccountLabelPrefix}${secret.label})`,
 				value: `smtp-${String(smtpAccount.linkRow.id)}`,
 			});
 		}
@@ -69,15 +84,15 @@ async function Page() {
 
 		if (verified) {
 			options.push({
-				label: `Google (${googleAccount.email})`,
+				label: `${dict.platform.googleAccountLabelPrefix}${googleAccount.email})`,
 				value: `google-${googleAccount.id}`,
 			});
 		}
 	}
 
-	const workspace = await fetchWorkspace()
-	const workspaceMembers = await fetchWorkspaceMembers(workspace?.id)
-	const workspaceUserIdentities = await workspaceIdentityAssignments()
+	const workspace = await fetchWorkspace();
+	const workspaceMembers = await fetchWorkspaceMembers(workspace?.id);
+	const workspaceUserIdentities = await workspaceIdentityAssignments();
 
 	return (
 		<>

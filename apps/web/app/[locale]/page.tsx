@@ -1,14 +1,22 @@
-import { isSignedIn, resolveWorkspaceRedirectUrl } from "@/lib/actions/auth";
-import { redirect } from "next/navigation";
+import { DistributionLandingPage } from "@distribution/pages";
+import { getDefaultWorkspacePath, isSignedIn } from "@/lib/actions/auth";
 
-// The locale proxy rewrites / to /<locale>/, which had no page and 404ed —
-// deployments worked around it with a reverse-proxy redirect rule.
-export default async function LocaleHome() {
+export default async function LocaleRootPage({
+												 params,
+											 }: {
+	params: Promise<{ locale: string }>;
+}) {
+	const { locale } = await params;
 	const user = await isSignedIn();
 
-	if (user) {
-		redirect(await resolveWorkspaceRedirectUrl(user));
-	}
+	const workspacePath = user
+		? await getDefaultWorkspacePath(user)
+		: null;
 
-	redirect("/auth/login");
+	return (
+		<DistributionLandingPage
+			locale={locale}
+			workspacePath={workspacePath}
+		/>
+	);
 }

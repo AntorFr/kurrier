@@ -8,7 +8,6 @@ import {
 import { getMessageAddress, getMessageName } from "@common/mail-client";
 import { generateSnippet, upsertMailboxThreadItem } from "@common";
 const serverConfig = getServerEnv();
-import IORedis from "ioredis";
 import { Worker } from "bullmq";
 import {
 	db,
@@ -26,23 +25,27 @@ import {
 	smtpAccounts,
 	smtpAccountSecrets,
 	threads,
+	getSecretAdmin,
+	jmapAccounts,
 } from "@db";
 import { createMailer } from "@providers";
 import { toArray } from "drizzle-orm/mysql-core";
 import { and, eq } from "drizzle-orm";
 import addressparser from "addressparser";
-import { PgTransaction } from "drizzle-orm/pg-core";
 import { getRedis } from "../../lib/get-redis";
 import {GetObjectCommand, PutObjectCommand} from "@aws-sdk/client-s3";
 import {s3} from "../../lib/create-s3-client";
 import MailComposer from "nodemailer/lib/mail-composer/index.js";
-// import MailComposer from "nodemailer/lib/mail-composer";
-const connection = new IORedis({
+const connection = {
 	maxRetriesPerRequest: null,
 	password: serverConfig.REDIS_PASSWORD,
 	host: serverConfig.REDIS_HOST || "redis",
 	port: Number(serverConfig.REDIS_PORT || 6379),
-});
+}
+
+type DbTransaction = Parameters<
+	Parameters<typeof db.transaction>[0]
+>[0];
 
 type AttachmentDownload = {
 	item: ReturnType<typeof MessageAttachmentInsertSchema.parse>;
@@ -60,9 +63,18 @@ export default defineNitroPlugin(async (nitroApp) => {
 				case "send-scheduled-draft":
 					await processDraft(job.data);
 					return { success: true };
-				case "send-and-reconcile":
-					await send(job.data);
-					return { success: true };
+				// case "send-and-reconcile":
+				// 	await send(job.data);
+				// 	return { success: true };
+				case "send-and-reconcile": {
+					const result = await send(job.data);
+					if (!result.success) {
+						throw new Error(
+							result.error ?? "Failed to send email",
+						);
+					}
+					return result;
+				}
 				default:
 					return { success: true };
 			}
@@ -98,7 +110,7 @@ export default defineNitroPlugin(async (nitroApp) => {
 
 	type GetOriginalMessageType = Awaited<ReturnType<typeof getOriginalMessage>>;
 
-	async function ensureThreadId(ownerId: string, workspaceId: string, tx: PgTransaction<any>) {
+	async function ensureThreadId(ownerId: string, workspaceId: string, tx: DbTransaction) {
 		const [t] = await tx
 			.insert(threads)
 			.values({
@@ -196,30 +208,81 @@ export default defineNitroPlugin(async (nitroApp) => {
 				throw new Error("Mailbox not found");
 			}
 
-			const [secrets] = mailbox.identity.providerId
-				? await decryptAdminSecrets({
-					linkTable: providerSecrets,
-					foreignCol: providerSecrets.providerId,
-					secretIdCol: providerSecrets.secretId,
-					ownerId: mailbox.identity.ownerId,
-					parentId: String(mailbox.identity.providerId),
-				})
-				: await decryptAdminSecrets({
-					linkTable: smtpAccountSecrets,
-					foreignCol: smtpAccountSecrets.accountId,
-					secretIdCol: smtpAccountSecrets.secretId,
-					ownerId: mailbox.identity.ownerId,
-					parentId: String(mailbox.identity.smtpAccountId),
-				});
+			const providerType =
+				mailbox.provider?.type ?? "smtp";
 
-			const credentials = secrets?.vault?.decrypted_secret
-				? JSON.parse(secrets.vault.decrypted_secret)
-				: {};
+			let credentials: Record<string, unknown>;
+
+			if (providerType === "jmap") {
+				const [jmapAccount] = await tx
+					.select()
+					.from(jmapAccounts)
+					.where(
+						and(
+							eq(
+								jmapAccounts.identityId,
+								mailbox.identity.id,
+							),
+							eq(
+								jmapAccounts.workspaceId,
+								mailbox.identity.workspaceId,
+							),
+						),
+					)
+					.limit(1);
+
+				if (!jmapAccount) {
+					throw new Error(
+						"JMAP account not found for identity",
+					);
+				}
+
+				const { vault } = await getSecretAdmin(
+					jmapAccount.tokenSecretId,
+				);
+
+				credentials = {
+					token: vault.decrypted_secret,
+					sessionUrl: jmapAccount.sessionUrl,
+					accountId: jmapAccount.accountId,
+					username: jmapAccount.username,
+				};
+			} else {
+				const [secrets] = mailbox.identity.providerId
+					? await decryptAdminSecrets({
+						linkTable: providerSecrets,
+						foreignCol: providerSecrets.providerId,
+						secretIdCol: providerSecrets.secretId,
+						ownerId: mailbox.identity.ownerId,
+						parentId: String(
+							mailbox.identity.providerId,
+						),
+					})
+					: await decryptAdminSecrets({
+						linkTable: smtpAccountSecrets,
+						foreignCol: smtpAccountSecrets.accountId,
+						secretIdCol: smtpAccountSecrets.secretId,
+						ownerId: mailbox.identity.ownerId,
+						parentId: String(
+							mailbox.identity.smtpAccountId,
+						),
+					});
+
+				credentials =
+					secrets?.vault?.decrypted_secret
+						? JSON.parse(
+							secrets.vault.decrypted_secret,
+						)
+						: {};
+			}
 
 			const mailer = createMailer(
-				mailbox.provider ? mailbox.provider.type : "smtp",
+				providerType,
 				credentials,
 			);
+
+			//
+
 
 			const attachmentBlobs = await fetchAttachmentBlobs(
 				decodedForm.attachments as string,
@@ -260,7 +323,7 @@ export default defineNitroPlugin(async (nitroApp) => {
 				threadIdForMessage = await ensureThreadId(
 					mailbox.identity.ownerId,
 					mailbox.mailbox.workspaceId,
-					tx as PgTransaction<any>,
+					tx,
 				);
 			}
 
@@ -308,6 +371,8 @@ export default defineNitroPlugin(async (nitroApp) => {
 
 			const mailerResponse = await mailer.sendEmail(data.to, {
 				from: mailbox.identity.value,
+				cc: data.cc ?? [],
+				bcc: data.bcc ?? [],
 				subject: String(newMessageBody.subject),
 				text: newMessageBody.text ?? "",
 				html: newMessageBody.html ?? "",

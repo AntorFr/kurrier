@@ -1,31 +1,31 @@
 "use client";
-import * as React from "react";
-import { PublicConfig } from "@schema";
-import {
-	FetchIdentityMailboxListResult, FetchMailboxResult,
-	FetchMailboxThreadsResult,
-} from "@/lib/actions/mailbox";
-import {
-	FetchLabelsResult,
-	FetchMailboxThreadLabelsResult,
-} from "@/lib/actions/labels";
-import type { MailboxEntity } from "@db";
+import type { PublicConfig } from "@schema";
+import { usePathname } from "next/navigation";
+import { use } from "react";
 import MailListHeader from "@/components/mailbox/default/mail-list-header";
 import WebmailListItem from "@/components/mailbox/default/webmail-list-item";
 import { DynamicContextProvider } from "@/hooks/use-dynamic-context";
-import { useMediaQuery } from "@mantine/hooks";
-import WebmailListItemMobile from "@/components/mailbox/default/webmail-list-item-mobile";
-import { usePathname } from "next/navigation";
-import {use} from "react";
+import type {
+	FetchLabelsResult,
+	FetchMailboxThreadLabelsResult,
+} from "@/lib/actions/labels";
+import type {
+	FetchIdentityMailboxListResult,
+	FetchMailboxResult,
+	FetchMailboxThreadsResult,
+} from "@/lib/actions/mailbox";
 
 type WebListProps = {
-	mailboxThreadPromise: Promise<{ mailboxThreads: FetchMailboxThreadsResult, labelsByThreadId: FetchMailboxThreadLabelsResult }>;
+	mailboxThreadPromise: Promise<{
+		mailboxThreads: FetchMailboxThreadsResult;
+		labelsByThreadId: FetchMailboxThreadLabelsResult;
+	}>;
 	publicConfig: PublicConfig;
 	identityPublicId: string;
 	identityMailboxesPromise: Promise<FetchIdentityMailboxListResult>;
 	fetchMailboxPromise: Promise<FetchMailboxResult>;
 	globalLabelsPromise: Promise<FetchLabelsResult>;
-	workspacePublicId?: string;
+	workspacePublicId: string;
 };
 
 export default function WebmailList({
@@ -35,15 +35,12 @@ export default function WebmailList({
 	identityMailboxesPromise,
 	globalLabelsPromise,
 	workspacePublicId,
-	fetchMailboxPromise
+	fetchMailboxPromise,
 }: WebListProps) {
-	const {labelsByThreadId, mailboxThreads} = use(mailboxThreadPromise)
-	const globalLabels = use(globalLabelsPromise)
-	const fetchedMailbox = use(fetchMailboxPromise)
-	const mailboxSync = fetchedMailbox.mailboxSync
-	const activeMailbox = fetchedMailbox.activeMailbox as MailboxEntity
-	const identityMailboxes = use(identityMailboxesPromise)
-	const isMobile = useMediaQuery("(max-width: 768px)");
+	const { labelsByThreadId, mailboxThreads } = use(mailboxThreadPromise);
+	const globalLabels = use(globalLabelsPromise);
+	const { mailboxSync, activeMailbox } = use(fetchMailboxPromise);
+	const identityMailboxes = use(identityMailboxesPromise);
 	// Gate on the URL, not useParams(): a retained parallel-route slot keeps
 	// its [threadId] param alive after navigating back to the mailbox, which
 	// left the list hidden. The pathname always reflects the real location.
@@ -54,11 +51,11 @@ export default function WebmailList({
 	const hasArchive = identityMailboxes.some(
 		(row) =>
 			row.identity?.id === activeMailbox?.identityId &&
-			row.mailboxes?.some((m: MailboxEntity) => m.kind === "archive"),
+			row.mailboxes?.some((m) => m.kind === "archive"),
 	);
 
 	return (
-		<div className={threadOpen ? "hidden" : ""}>
+		<div className={threadOpen ? "hidden" : "min-w-0"}>
 			<DynamicContextProvider
 				initialState={{
 					selectedThreadIds: new Set(),
@@ -72,7 +69,7 @@ export default function WebmailList({
 						<span className={"lowercase"}>{activeMailbox.name}</span>
 					</div>
 				) : (
-					<div className="rounded-xl border bg-background/50 z-[50]">
+					<div className="min-w-0 overflow-hidden rounded-xl border bg-background/50">
 						<MailListHeader
 							mailboxThreads={mailboxThreads}
 							mailboxSync={mailboxSync ?? undefined}
@@ -81,36 +78,20 @@ export default function WebmailList({
 							activeMailbox={activeMailbox}
 						/>
 
-						<ul role="list" className={`divide-y rounded-4xl`}>
-							{mailboxThreads.map((mailboxThreadItem) =>
-								isMobile ? (
-									<WebmailListItemMobile
-										key={
-											mailboxThreadItem.threadId + mailboxThreadItem.mailboxId
-										}
-										mailboxThreadItem={mailboxThreadItem}
-										activeMailbox={activeMailbox}
-										identityPublicId={identityPublicId}
-										mailboxSync={mailboxSync ?? undefined}
-										labelsByThreadId={labelsByThreadId}
-										hasArchive={hasArchive}
-									/>
-								) : (
-									<WebmailListItem
-										key={
-											mailboxThreadItem.threadId + mailboxThreadItem.mailboxId
-										}
-										mailboxThreadItem={mailboxThreadItem}
-										workspacePublicId={workspacePublicId}
-										activeMailbox={activeMailbox}
-										identityPublicId={identityPublicId}
-										mailboxSync={mailboxSync ?? undefined}
-										globalLabels={globalLabels}
-										labelsByThreadId={labelsByThreadId}
-										hasArchive={hasArchive}
-									/>
-								),
-							)}
+						<ul className="divide-y rounded-4xl">
+							{mailboxThreads.map((mailboxThreadItem) => (
+								<WebmailListItem
+									key={mailboxThreadItem.threadId + mailboxThreadItem.mailboxId}
+									mailboxThreadItem={mailboxThreadItem}
+									workspacePublicId={workspacePublicId}
+									activeMailbox={activeMailbox}
+									identityPublicId={identityPublicId}
+									mailboxSync={mailboxSync ?? undefined}
+									globalLabels={globalLabels}
+									labelsByThreadId={labelsByThreadId}
+									hasArchive={hasArchive}
+								/>
+							))}
 						</ul>
 					</div>
 				)}

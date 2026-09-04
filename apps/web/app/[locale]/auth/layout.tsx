@@ -1,19 +1,19 @@
-import { isSignedIn, resolveWorkspaceRedirectUrl } from "@/lib/actions/auth";
 import { redirect } from "next/navigation";
+import { getDefaultWorkspacePath, isSignedIn } from "@/lib/actions/auth";
+import { withLocale } from "@/lib/utils";
 
 export default async function DashboardLayout({
 	children,
+	params,
 }: {
 	children: React.ReactNode;
+	params: Promise<{ locale: string }>;
 }) {
+	const { locale } = await params;
 	const user = await isSignedIn();
 
 	if (user) {
-		// Send signed-in users to their workspace (the bare
-		// /dashboard/platform/overview path has no /w/<workspace> segment
-		// and 404s). The read-only resolver is deliberate: layouts render
-		// as server components and must not write cookies.
-		redirect(await resolveWorkspaceRedirectUrl(user));
+		redirect(withLocale(locale, await getDefaultWorkspacePath(user)));
 	}
 
 	return <>{children}</>;
