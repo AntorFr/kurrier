@@ -27,6 +27,8 @@
 
 		// Libs & paths
 		"lib": ["ESNext", "DOM"],
+		// TypeScript 6 deprecates baseUrl; the paths below still rely on it.
+		"ignoreDeprecations": "6.0",
 		"baseUrl": ".",
 		"paths": {
 			"@worker/*": ["./*"],

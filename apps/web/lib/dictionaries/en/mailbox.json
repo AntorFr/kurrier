@@ -5,6 +5,8 @@
 	"restore": "Restore",
 	"minimize": "Minimize",
 	"movedToTrash": "Messages moved to Trash",
+	"movedToArchive": "Messages moved to Archive",
+	"archive": "Archive",
 	"threadDeletedForever": "Thread deleted forever",
 	"trashRemoved": "Trash removed successfully",
 	"selectAll": "Select all",

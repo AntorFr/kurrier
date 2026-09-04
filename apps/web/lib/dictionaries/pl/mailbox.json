@@ -5,6 +5,8 @@
 	"restore": "Przywróć",
 	"minimize": "Minimalizuj",
 	"movedToTrash": "Wiadomości przeniesiono do kosza",
+	"movedToArchive": "Wiadomości przeniesiono do archiwum",
+	"archive": "Archiwizuj",
 	"threadDeletedForever": "Wątek został trwale usunięty",
 	"trashRemoved": "Kosz został pomyślnie opróżniony",
 	"selectAll": "Zaznacz wszystko",

@@ -5,6 +5,8 @@
 	"restore": "Восстановить",
 	"minimize": "Свернуть",
 	"movedToTrash": "Письма перемещены в корзину",
+	"movedToArchive": "Письма перемещены в архив",
+	"archive": "В архив",
 	"threadDeletedForever": "Цепочка удалена безвозвратно",
 	"trashRemoved": "Корзина очищена",
 	"selectAll": "Выбрать все",

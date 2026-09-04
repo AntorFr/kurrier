@@ -5,6 +5,8 @@
 	"restore": "Restaurar",
 	"minimize": "Minimizar",
 	"movedToTrash": "Mensagens movidas para a lixeira",
+	"movedToArchive": "Mensagens movidas para o arquivo",
+	"archive": "Arquivar",
 	"threadDeletedForever": "Conversa excluída permanentemente",
 	"trashRemoved": "Lixeira esvaziada com sucesso",
 	"selectAll": "Selecionar todas",
